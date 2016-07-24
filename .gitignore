@@ -31,3 +31,4 @@ ipfixd
 
 # Debug files
 *.dSYM/
+tags
