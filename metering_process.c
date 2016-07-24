@@ -81,6 +81,7 @@ pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 		get_flow_data(hdr, bytes, &record.metering_entity[i], process->metering_targets[i]);
 	}
 
+    printf("hdr->len = %u, hdr->caplen = %u\n", hdr->len, hdr->caplen);
 	printf("capture packet: srcIP=%u.%u.%u.%u dstIP=%u.%u.%u.%u, octeteDeltaCount=%lu, packetDeltaCount=%lu\n",
 		record.definition_entity[0].data[0],
 		record.definition_entity[0].data[1],
@@ -91,7 +92,7 @@ pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 		record.definition_entity[1].data[2],
 		record.definition_entity[1].data[3],
 		*(uint64_t *)record.metering_entity[0].data,
-		*(uint64_t *)record.metering_entity[0].data);
+		*(uint64_t *)record.metering_entity[1].data);
 }
 
 void
@@ -103,7 +104,7 @@ metering_process_start(struct metering_process *mtr_process)
 
 	for (size_t i=0; i<mtr_process->domain->num_points; i++) {
 		char *ifname = mtr_process->domain->obsv_points[i]->ifname;
-		pcap_t *handle = pcap_open_live(ifname, 1024, 1, 1000, errbuf);
+		pcap_t *handle = pcap_open_live(ifname, 128, 1, 1000, errbuf);
 		if (handle == NULL) {
 			fatal_exit("cannot open device '%s': %s", ifname, errbuf);
 		}
@@ -115,7 +116,7 @@ metering_process_start(struct metering_process *mtr_process)
 
 	/* Start capture */
 	log_info("start caputuring");
-	if (pcap_loop(handles[0], -1, pcap_cb, NULL) < 0) {
+	if (pcap_loop(handles[0], -1, pcap_cb, (u_char *)mtr_process) < 0) {
 		fatal_exit("error in pcap_loop");
 	}
 
