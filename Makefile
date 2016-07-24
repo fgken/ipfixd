@@ -1,9 +1,9 @@
 PROGRAM=ipfixd
 SRCS=*.c
-CFLAGS= -g -O0
-LDFLAGS= -l pcap
+CFLAGS= -g -O0 -std=gnu99
+LDFLAGS= -lpcap
 
 CC= gcc
 
 all:
-	$(CC) -o $(PROGRAM) $(CFLAGS) $(LDFLAGS) $(SRCS)
+	$(CC) -o $(PROGRAM) $(CFLAGS) $(SRCS) $(LDFLAGS)

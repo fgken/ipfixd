@@ -1,6 +1,7 @@
 #ifndef __OBSERVATION_DOMAIN_H__
 #define __OBSERVATION_DOMAIN_H__
 
+#include <stdint.h>
 #include "observation_point.h"
 
 struct observation_domain {

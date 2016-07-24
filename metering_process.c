@@ -1,11 +1,13 @@
 #include <stdlib.h>
+#include <string.h>
+#include <netinet/ip.h>
 #include <pcap.h>
 #include "metering_process.h"
 #include "log.h"
 
 
 struct metering_process *
-metering_process_create(struct observation_domain *obsv_domain)
+metering_process_create(struct observation_domain *obsv_domain, enum flow_key *flow_definitions, size_t num_flow_definitions, enum flow_key *metering_targets, size_t num_metering_targets)
 {
 	if (obsv_domain == NULL) {
 		return NULL;
@@ -17,47 +19,79 @@ metering_process_create(struct observation_domain *obsv_domain)
 	}
 
 	process->domain = obsv_domain;
-	process->flow_definition[0] = sourceIPv4Address;
-	process->flow_definition[1] = destinationIPv4Address;
-	process->num_flow_definition = 2;
 
-	process->metering_target[0] = octetDeltaCount;
-	process->metering_target[1] = packetDeltaCount;
-	process->num_metering_target = 2;
+	process->num_flow_definitions = num_flow_definitions;
+	for (size_t i=0; i < num_flow_definitions; i++) {
+		process->flow_definitions[i] = flow_definitions[i];
+	}
+
+	process->num_metering_targets = num_metering_targets;
+	for (size_t i=0; i < num_metering_targets; i++) {
+		process->metering_targets[i] = metering_targets[i];
+	}
 
 	return process;
 }
 
-void
-metering_process_delete(struct metering_process *mtr_process)
+uint32_t
+get_flow_data(const struct pcap_pkthdr *hdr, const u_char *bytes, struct flow_data *flow_data, enum flow_key key)
 {
+	if (bytes[6+6] != 0x08 || bytes[6+6+1] != 0x00) {
+		return -1;
+	}
+
+	const struct ip *ip = (const struct ip *)&bytes[6+6+2];
+	flow_data->key = key;
+	
+	switch(key) {
+		case sourceIPv4Address:
+			flow_data->size = 4;
+			memcpy(flow_data->data, &ip->ip_src, 4);
+			break;
+		case destinationIPv4Address:
+			flow_data->size = 4;
+			memcpy(flow_data->data, &ip->ip_dst, 4);
+			break;
+		case octetDeltaCount:
+			flow_data->size = 8;
+			*(uint64_t *)flow_data->data = (uint64_t)hdr->len;
+			break;
+		case packetDeltaCount:
+			flow_data->size = 8;
+			*(uint64_t *)flow_data->data = (uint64_t)1;
+			break;
+		default:
+			break;
+	}
+
+	return 0;
 }
 
 static void
 pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 {
 	struct metering_process *process = (struct metering_process *)user;
+	struct flow_record record;
 
-	if (1) {
+	for (size_t i=0; i < process->num_flow_definitions; i++) {
+		get_flow_data(hdr, bytes, &record.definition_entity[i], process->flow_definitions[i]);
 	}
 
-	uint8_t srcIPv4[4] = {0};
-	uint8_t dstIPv4[4] = {0};
-
-	for (size_t i; i<process->num_flow_definition; i++) {
-		switch(process->flow_definition[i]) {
-			case sourceIPv4Address:
-				break;
-			case destinationIPv4Address:
-				break;
-			default:
-				break;
-		}
+	for (size_t i=0; i < process->num_metering_targets; i++) {
+		get_flow_data(hdr, bytes, &record.metering_entity[i], process->metering_targets[i]);
 	}
 
-	enum flow_key metering_target[8];
-	size_t num_metering_target;
-	struct flow_record records[128];
+	printf("capture packet: srcIP=%u.%u.%u.%u dstIP=%u.%u.%u.%u, octeteDeltaCount=%lu, packetDeltaCount=%lu\n",
+		record.definition_entity[0].data[0],
+		record.definition_entity[0].data[1],
+		record.definition_entity[0].data[2],
+		record.definition_entity[0].data[3],
+		record.definition_entity[1].data[0],
+		record.definition_entity[1].data[1],
+		record.definition_entity[1].data[2],
+		record.definition_entity[1].data[3],
+		*(uint64_t *)record.metering_entity[0].data,
+		*(uint64_t *)record.metering_entity[0].data);
 }
 
 void

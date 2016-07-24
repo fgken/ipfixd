@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <pcap.h>
 
 #include "log.h"
@@ -28,7 +29,10 @@ setup_metering_process(char *ifname)
 	struct observation_point *point = observation_point_create(ifname);
 	struct observation_domain *domain = observation_domain_create();
 	observation_domain_add(domain, point);
-	struct metering_process *process = metering_process_create(domain);
+
+    enum flow_key flow_definitions[2] = {sourceIPv4Address, destinationIPv4Address};
+    enum flow_key metering_targets[2] = {octetDeltaCount, packetDeltaCount};
+	struct metering_process *process = metering_process_create(domain, flow_definitions, 2, metering_targets, 2);
 
 	return process;
 }

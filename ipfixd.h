@@ -16,10 +16,6 @@ struct flow {
 	struct flow_match *match;
 };
 
-struct flow_record {
-	uint32_t data;
-};
-
 struct ipfix_msg_header {
 	/*
 	 * The value of this field is 0x000a for the current version.
