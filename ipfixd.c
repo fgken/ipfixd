@@ -1,58 +1,61 @@
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <pcap.h>
 
-int main(int argc, char *argv[])
+#include "log.h"
+
+void
+usage()
 {
-	pcap_t *handle;
-	char *dev;
+	fatal_exit("Usage: ipfixd [-i interface]");
+}
+
+void
+pcap_cb(u_char *user, const struct pcap_pkthdr *header, const u_char *bytes)
+{
+	puts("capture");
+}
+
+int
+main(int argc, char *argv[])
+{
+	char *device = NULL;
+	pcap_t *handle = NULL;
 	char errbuf[PCAP_ERRBUF_SIZE];
-	struct bpf_program fp;
-	char filter_exp[] = "";
-	bpf_u_int32 mask;
-	bpf_u_int32 net;
-	struct pcap_pkthdr header;
-	const u_char *packet;
+	int ch;
 
-	/* Define the device */
-	dev = pcap_lookupdev(errbuf);
-	if (dev == NULL) {
-		fprintf(stderr, "Could't find default device: %s\n", errbuf);
-		return 2;
+	while ((ch = getopt(argc, argv, "i:")) != -1) {
+		switch (ch) {
+			case 'i':
+				device = optarg;
+				break;
+			default:
+				break;
+		}
 	}
-	printf("Default device: %s\n", dev);
 
-	/* Find the properties for the device */
-	if (pcap_lookupnet(dev, &net, &mask, errbuf) == -1) {
-		fprintf(stderr, "Couldn't get netmask for device %s: %s\n", dev, errbuf);
-		return 2;
+	/* Get a default network device */
+	if (device == NULL) {
+		device = pcap_lookupdev(errbuf);
+		if (device == NULL) {
+			fatal_exit("cannot find default target device: %s", errbuf);
+		}
 	}
+	log_info("target device: %s", device);
 
 	/* Open the session in promiscuous mode */
-	handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
+	handle = pcap_open_live(device, 1024, 1, 1000, errbuf);
 	if (handle == NULL) {
-		fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
-		return 2;
+		fatal_exit("cannot open device '%s': %s", device, errbuf);
 	}
+	log_info("open the session in promiscuous mode");
 
-	/* Compile and apply the filter */
-	if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
-		fprintf(stderr, "Couldn't parse filter %s: %s\n",
-			filter_exp, pcap_geterr(handle));
-		return 2;
+	/* Start capture */
+	log_info("start caputuring");
+	if (pcap_loop(handle, -1, pcap_cb, NULL) < 0) {
+		fatal_exit("error in pcap_loop");
 	}
-	if (pcap_setfilter(handle, &fp) == -1) {
-		fprintf(stderr, "Couldn't install filter %s: %s\n",
-			filter_exp, pcap_geterr(handle));
-		return 2;
-	}
-
-	/* Grab a packet */
-	packet = pcap_next(handle, &header);
-
-	/* Print its length */
-	printf("Jacked a packet with length of [%d]\n", header.len);
-
-	/* And close the session */
 	pcap_close(handle);
 
 	return 0;
