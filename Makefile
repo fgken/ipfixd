@@ -1,5 +1,5 @@
 PROGRAM=ipfixd
-SRCS=ipfixd.c
+SRCS=*.c
 CFLAGS= -g -O0
 LDFLAGS= -l pcap
 

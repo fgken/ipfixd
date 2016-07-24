@@ -1,5 +1,25 @@
 #include <stdint.h>
 
+enum flow_key {
+	octetDeltaCount				= 1,
+	packetDeltaCount			= 2,
+	protocolIdentifier 			= 4,
+	ipClassOfService			= 5,
+	sourceTransportPort		 	= 7,
+	sourceIPv4Address 			= 8,
+	ingressInterface			= 10,	/* unsigned32, identifier, current */
+	destinationTransportPort 	= 11,
+	destinationIPv4Address 		= 12,
+};
+
+struct flow {
+	struct flow_match *match;
+};
+
+struct flow_record {
+	uint32_t data;
+};
+
 struct ipfix_msg_header {
 	/*
 	 * The value of this field is 0x000a for the current version.

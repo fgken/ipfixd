@@ -4,6 +4,9 @@
 #include <pcap.h>
 
 #include "log.h"
+#include "metering_process.h"
+#include "observation_domain.h"
+#include "observation_point.h"
 
 void
 usage()
@@ -12,9 +15,22 @@ usage()
 }
 
 void
-pcap_cb(u_char *user, const struct pcap_pkthdr *header, const u_char *bytes)
+pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 {
 	puts("capture");
+}
+
+struct metering_process *
+setup_metering_process(char *ifname)
+{
+	log_step();
+
+	struct observation_point *point = observation_point_create(ifname);
+	struct observation_domain *domain = observation_domain_create();
+	observation_domain_add(domain, point);
+	struct metering_process *process = metering_process_create(domain);
+
+	return process;
 }
 
 int
@@ -43,6 +59,9 @@ main(int argc, char *argv[])
 		}
 	}
 	log_info("target device: %s", device);
+
+	struct metering_process *process = setup_metering_process(device);
+	metering_process_start(process);
 
 	/* Open the session in promiscuous mode */
 	handle = pcap_open_live(device, 1024, 1, 1000, errbuf);

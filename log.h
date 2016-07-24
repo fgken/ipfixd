@@ -18,8 +18,10 @@ enum {
 #define log_notice(msg, ...)	log(LOG_NOTICE, msg, ##__VA_ARGS__)
 #define log_info(msg, ...)		log(LOG_INFO, msg, ##__VA_ARGS__)
 #define log_debug(msg, ...)		log(LOG_DEBUG, msg, ##__VA_ARGS__)
+#define log_step()				log_debug("%s(%d): %s", __FILE__, __LINE__, __FUNCTION__)
 #define fatal_exit(msg, ...)	{ \
 	log(LOG_ERR, msg, ##__VA_ARGS__); \
+	log_step(); \
 	exit(1); \
 }
 
