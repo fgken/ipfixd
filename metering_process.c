@@ -67,6 +67,56 @@ get_flow_data(const struct pcap_pkthdr *hdr, const u_char *bytes, struct flow_da
 	return 0;
 }
 
+uint32_t
+insert_flow_record(struct metering_process *process, struct flow_record *record)
+{
+	for (size_t i=0; i < sizeof(process->records)/sizeof(process->records[0]); i++) {
+		if (process->records[i] != NULL) {
+			if (memcmp(process->records[i]->definition_entity[0].data,
+					record->definition_entity[0].data,
+					process->records[i]->definition_entity[0].size
+					) == 0 &&
+				memcmp(process->records[i]->definition_entity[1].data,
+					record->definition_entity[1].data,
+					process->records[i]->definition_entity[1].size
+					) == 0)
+			{
+				*(uint64_t *)process->records[i]->metering_entity[0].data += *(uint64_t *)record->metering_entity[0].data;
+				*(uint64_t *)process->records[i]->metering_entity[1].data += *(uint64_t *)record->metering_entity[1].data;
+				break;
+			}
+		} else {
+			process->records[i] = calloc(1, sizeof(struct flow_record));
+			memcpy(process->records[i], record, sizeof(struct flow_record));
+			break;
+		}
+	}
+	return 0;
+}
+
+void
+dump_flow_records(struct metering_process *process)
+{
+	printf("--- dump flow records -------------------\n");	
+	for (size_t i=0; i < sizeof(process->records)/sizeof(process->records[0]); i++) {
+		if (process->records[i] != NULL) {
+			struct flow_record *record = process->records[i];
+			printf("capture packet: srcIP=%u.%u.%u.%u dstIP=%u.%u.%u.%u, octeteDeltaCount=%llu, packetDeltaCount=%llu\n",
+				record->definition_entity[0].data[0],
+				record->definition_entity[0].data[1],
+				record->definition_entity[0].data[2],
+				record->definition_entity[0].data[3],
+				record->definition_entity[1].data[0],
+				record->definition_entity[1].data[1],
+				record->definition_entity[1].data[2],
+				record->definition_entity[1].data[3],
+				*(uint64_t *)record->metering_entity[0].data,
+				*(uint64_t *)record->metering_entity[1].data);
+				}
+	}
+	printf("-----------------------------------------\n");	
+}
+
 static void
 pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 {
@@ -81,18 +131,22 @@ pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 		get_flow_data(hdr, bytes, &record.metering_entity[i], process->metering_targets[i]);
 	}
 
-    printf("hdr->len = %u, hdr->caplen = %u\n", hdr->len, hdr->caplen);
-	printf("capture packet: srcIP=%u.%u.%u.%u dstIP=%u.%u.%u.%u, octeteDeltaCount=%lu, packetDeltaCount=%lu\n",
-		record.definition_entity[0].data[0],
-		record.definition_entity[0].data[1],
-		record.definition_entity[0].data[2],
-		record.definition_entity[0].data[3],
-		record.definition_entity[1].data[0],
-		record.definition_entity[1].data[1],
-		record.definition_entity[1].data[2],
-		record.definition_entity[1].data[3],
-		*(uint64_t *)record.metering_entity[0].data,
-		*(uint64_t *)record.metering_entity[1].data);
+//    printf("hdr->len = %u, hdr->caplen = %u\n", hdr->len, hdr->caplen);
+//	printf("capture packet: srcIP=%u.%u.%u.%u dstIP=%u.%u.%u.%u, octeteDeltaCount=%llu, packetDeltaCount=%llu\n",
+//		record.definition_entity[0].data[0],
+//		record.definition_entity[0].data[1],
+//		record.definition_entity[0].data[2],
+//		record.definition_entity[0].data[3],
+//		record.definition_entity[1].data[0],
+//		record.definition_entity[1].data[1],
+//		record.definition_entity[1].data[2],
+//		record.definition_entity[1].data[3],
+//		*(uint64_t *)record.metering_entity[0].data,
+//		*(uint64_t *)record.metering_entity[1].data);
+
+	insert_flow_record(process, &record);
+
+	dump_flow_records(process);
 }
 
 void

@@ -24,7 +24,7 @@ struct metering_process {
 	size_t num_flow_definitions;
 	enum flow_key metering_targets[8];
 	size_t num_metering_targets;
-	struct flow_record records[128];
+	struct flow_record *records[128];
     size_t num_records;
 };
 
