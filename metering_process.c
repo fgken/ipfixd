@@ -117,6 +117,80 @@ dump_flow_records(struct metering_process *process)
 	printf("-----------------------------------------\n");	
 }
 
+void nbufwrite8(uint8_t **dst, uint8_t val)
+{
+	**dst = val;
+	*dst += 1;
+}
+void nbufwrite16(uint8_t **dst, uint16_t val)
+{
+	**dst = val;
+	*dst += 1;
+}
+void nbufwrite32(uint8_t **dst, uint32_t val)
+{
+	**dst = val;
+	*dst += 1;
+}
+
+void
+send_flow_records(struct metering_process *process)
+{
+	for (size_t i=0; i < sizeof(process->records)/sizeof(process->records[0]); i++) {
+		struct flow_record *record = process->records[i];
+		if (record != NULL &&
+			*(uint64_t *)record->metering_entity[1].data > 100)
+		{
+			static uint32_t seq = 0;
+			uint8_t *nbuf = calloc(1, 1024*1024);
+
+			printf("send a flow record\n");
+			uint8_t *p = nbuf;
+
+			/* Message Header */
+			nbufwrite16(&p, 0x0009);		// Version Number
+			nbufwrite16(&p, 100);		// Length
+			nbufwrite32(&p, 0x0000ffff);	// Export Time
+			nbufwrite32(&p, seq++);			// Sequence Number
+			nbufwrite32(&p, 1);				// Observation Domain ID
+
+			/* Set Header */
+			nbufwrite16(&p, 1);				// Set ID
+			nbufwrite16(&p, 100);			// Length
+
+			/* Template Record */
+			nbufwrite16(&p, 256);			// Template ID
+			nbufwrite16(&p, 4);				// Field Count
+			nbufwrite16(&p, 0x0000 | sourceIPv4Address);		// E | Information Element identifier
+			nbufwrite16(&p, 4);				// Field Length
+			nbufwrite32(&p, 0);				// Enterpprise Number
+			nbufwrite16(&p, 0x0000 | destinationIPv4Address);	// E | Information Element identifier
+			nbufwrite16(&p, 4);				// Field Length
+			nbufwrite32(&p, 0);				// Enterpprise Number
+			nbufwrite16(&p, 0x0000 | octetDeltaCount);			// E | Information Element identifier
+			nbufwrite16(&p, 8);				// Field Length
+			nbufwrite32(&p, 0);				// Enterpprise Number
+			nbufwrite16(&p, 0x0000 | packetDeltaCount);			// E | Information Element identifier
+			nbufwrite16(&p, 8);				// Field Length
+			nbufwrite32(&p, 0);				// Enterpprise Number
+
+			/* Set Header */
+			nbufwrite16(&p, 256);			// Set ID (= Template ID)
+			nbufwrite16(&p, 100);			// Length
+
+			/* Data Record */
+			nbufwrite32(&p, *(uint32_t *)record->definition_entity[0].data);
+			nbufwrite32(&p, *(uint32_t *)record->definition_entity[1].data);
+			nbufwrite32(&p, *(uint64_t *)record->metering_entity[0].data);
+			nbufwrite32(&p, *(uint64_t *)record->metering_entity[1].data);
+
+			free(nbuf);
+			free(process->records[i]);
+			process->records[i] = NULL;
+		}
+	}
+}
+
 static void
 pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 {
@@ -147,6 +221,8 @@ pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 	insert_flow_record(process, &record);
 
 	dump_flow_records(process);
+
+	send_flow_records(process);
 }
 
 void
