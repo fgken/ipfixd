@@ -4,9 +4,19 @@
 #include <stdint.h>
 #include <netinet/in.h>
 
+struct ipfix_stat {
+    uint64_t drop_no_buffer;
+    uint64_t drop_alloc_failed;
+    uint64_t drop_octet;
+};
+
 union ip_addr {
     struct in_addr v4;
     struct in6_addr v6;
+};
+
+struct custom_tuple {
+    int dummy;
 };
 
 struct full_tuple {

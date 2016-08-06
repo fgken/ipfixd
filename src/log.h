@@ -1,6 +1,8 @@
 #ifndef __LOG_H__
 #define __LOG_H__
 
+#include <stdio.h>
+
 enum {
 	LOG_ERR = 1,
 	LOG_WARN,
@@ -24,5 +26,8 @@ enum {
 	log_step(); \
 	exit(1); \
 }
+
+#define LOG_ALLOC_FAILED    "cannot allocate memory"
+#define LOG_NO_BUFFER       "no buffer space available"
 
 #endif /* __LOG_H__*/

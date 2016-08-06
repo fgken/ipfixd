@@ -4,6 +4,8 @@
 #include <string.h>
 #include <getopt.h>
 
+#include <pthread.h>
+
 #include <arpa/inet.h>
 #include <net/ethernet.h>
 #include <netinet/ip.h>
@@ -15,6 +17,9 @@
 
 #include "log.h"
 #include "ipfixd.h"
+#include "circular_buffer.h"
+
+struct ipfix_stat stat;
 
 void
 usage()
@@ -105,7 +110,7 @@ parse_packet(struct base_tuple *tuple, const uint8_t *data, size_t len)
 }
 
 void
-print_tuple(struct base_tuple *tuple)
+print_tuple(const struct base_tuple *tuple)
 {
     uint16_t af;
 
@@ -136,28 +141,38 @@ print_tuple(struct base_tuple *tuple)
 static void
 pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 {
-    struct base_tuple tuple;
-    parse_packet(&tuple, bytes, hdr->caplen);
-    print_tuple(&tuple);
+    struct circular_buffer *cbuf = (struct circular_buffer *)user;
+    struct base_tuple *tuple = calloc(1, sizeof(struct base_tuple));
+
+    if (tuple == NULL) {
+        stat.drop_alloc_failed++;
+        stat.drop_octet += hdr->len;
+        log_warn("Ignore a packet: " LOG_ALLOC_FAILED);
+        return;
+    }
+
+    if (cbuf_is_full(cbuf)) {
+        goto ignore;
+    }
+
+    parse_packet(tuple, bytes, hdr->caplen);
+
+    if (cbuf_push(cbuf, tuple) == 0) {
+        return;
+    }
+
+ignore:
+        free(tuple);
+        stat.drop_no_buffer++;
+        stat.drop_octet += hdr->len;
+        log_warn("Ignore a packet: " LOG_NO_BUFFER);
 }
 
-int
-main(int argc, char *argv[])
+void
+start_capture(char *device, struct circular_buffer *cbuf)
 {
-	char *device = NULL;
 	pcap_t *handle = NULL;
 	char errbuf[PCAP_ERRBUF_SIZE];
-	int ch;
-
-	while ((ch = getopt(argc, argv, "i:")) != -1) {
-		switch (ch) {
-			case 'i':
-				device = optarg;
-				break;
-			default:
-				break;
-		}
-	}
 
 	/* Get a default network device */
 	if (device == NULL) {
@@ -177,10 +192,51 @@ main(int argc, char *argv[])
 
 	/* Start capture */
 	log_info("start caputuring");
-	if (pcap_loop(handle, -1, pcap_cb, NULL) < 0) {
+	if (pcap_loop(handle, -1, pcap_cb, (u_char *)cbuf) < 0) {
 		fatal_exit("error in pcap_loop");
 	}
 	pcap_close(handle);
+}
+
+void *
+thread_print_tuple(void *p)
+{
+    struct circular_buffer *cbuf = (struct circular_buffer *)p;
+
+    while (1) {
+        struct base_tuple *tuple = cbuf_pop(cbuf);
+        if (tuple != NULL) {
+            print_tuple(tuple);
+            free(tuple);
+        }
+    }
+}
+
+int
+main(int argc, char *argv[])
+{
+	char *device = NULL;
+	int ch;
+
+	while ((ch = getopt(argc, argv, "i:")) != -1) {
+		switch (ch) {
+			case 'i':
+				device = optarg;
+				break;
+			default:
+				break;
+		}
+	}
+
+    struct circular_buffer *cbuf;
+    cbuf = cbuf_create(1024);
+
+    pthread_t pthread;
+    pthread_create(&pthread, NULL, &thread_print_tuple, (void *)cbuf);
+
+    start_capture(device, cbuf);
+
+    pthread_join(pthread, NULL);
 
 	return 0;
 }
