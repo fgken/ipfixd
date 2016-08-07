@@ -2,6 +2,7 @@
 #define __LOG_H__
 
 #include <stdio.h>
+#include <stdlib.h>
 
 enum {
 	LOG_ERR = 1,
