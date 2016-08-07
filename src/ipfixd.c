@@ -54,16 +54,66 @@ print_tuple(const struct base_tuple *tuple)
         srcip, tuple->src_port, dstip, tuple->dst_port, proto);
 }
 
+void
+merge_flow(struct ipfix_flow *dst, struct ipfix_flow *src)
+{
+    dst->octet += src->octet;
+    dst->count += src->count;
+}
+
+uint32_t
+flowdb_add(struct ipfix_flow **flowdb, size_t size, struct ipfix_flow *flow)
+{
+    for (size_t i=0; i < size; i++) {
+        if (flowdb[i] != NULL && flowdb[i]->hash == flow->hash) {
+            merge_flow(flowdb[i], flow);
+            return 1;
+        }
+    }
+
+    for (size_t i=0; i < size; i++) {
+        if (flowdb[i] == NULL) {
+            flowdb[i] = flow;
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+void
+print_flowdb(struct ipfix_flow **flowdb, size_t size)
+{
+    for (size_t i=0; i < size; i++) {
+        if (flowdb[i] != NULL) {
+            printf("flowdb[%4zu]:\n", i);
+            printf("  ");
+            print_tuple(&flowdb[i]->tuple);
+            printf("  octet: %zu\n", flowdb[i]->octet);
+            printf("  count: %zu\n", flowdb[i]->count);
+        }
+    }
+    puts("");
+}
+
 void *
 thread_print_tuple(void *p)
 {
     struct circular_buffer *cbuf = (struct circular_buffer *)p;
+    #define FLOWDB_SIZE    1024
+    size_t flowdb_size = FLOWDB_SIZE;
+    struct ipfix_flow **flowdb = calloc(1, sizeof(struct ipfix_flow *)*flowdb_size);
 
     while (1) {
-        struct base_tuple *tuple = cbuf_pop(cbuf);
-        if (tuple != NULL) {
-            print_tuple(tuple);
-            free(tuple);
+        struct ipfix_flow *flow = cbuf_pop(cbuf);
+        if (flow != NULL) {
+            // FIXME
+            flow->hash = *(uint64_t *)&flow->tuple;
+
+            if (flowdb_add(flowdb, flowdb_size, flow) != 0) {
+                free(flow);
+            }
+            print_flowdb(flowdb, flowdb_size);
         }
     }
 }

@@ -104,12 +104,13 @@ static void
 pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
 {
     struct circular_buffer *cbuf = (struct circular_buffer *)user;
-    struct base_tuple *tuple = calloc(1, sizeof(struct base_tuple));
+    struct ipfix_flow *flow = calloc(1, sizeof(struct ipfix_flow));
 
-    if (tuple == NULL) {
+    if (flow == NULL) {
         stat.drop_alloc_failed++;
         stat.drop_octet += hdr->len;
         log_warn("Ignore a packet: " LOG_ALLOC_FAILED);
+        free(flow);
         return;
     }
 
@@ -117,14 +118,18 @@ pcap_cb(u_char *user, const struct pcap_pkthdr *hdr, const u_char *bytes)
         goto ignore;
     }
 
-    parse_packet(tuple, bytes, hdr->caplen);
+    /* stat */
+    flow->octet = hdr->len;
+    flow->count = 1;
 
-    if (cbuf_push(cbuf, tuple) == 0) {
+    parse_packet(&flow->tuple, bytes, hdr->caplen);
+
+    if (cbuf_push(cbuf, flow) == 0) {
         return;
     }
 
 ignore:
-        free(tuple);
+        free(flow);
         stat.drop_no_buffer++;
         stat.drop_octet += hdr->len;
         log_warn("Ignore a packet: " LOG_NO_BUFFER);

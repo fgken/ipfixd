@@ -56,4 +56,12 @@ struct dns_tuple {
     int qname;
 };
 
+struct ipfix_flow {
+    uint64_t hash;
+    struct base_tuple tuple;
+    uint64_t octet;
+    uint64_t count;
+};
+
+
 #endif /* __IPFIXD_H__ */
