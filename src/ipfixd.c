@@ -229,7 +229,7 @@ main(int argc, char *argv[])
 	}
 
     struct circular_buffer *cbuf;
-    cbuf = cbuf_create(1024);
+    cbuf = cbuf_create(128*1024);
 
     pthread_t pthread;
     pthread_create(&pthread, NULL, &thread_print_tuple, (void *)cbuf);
