@@ -1,6 +1,6 @@
 PROGRAM=ipfixd
-SRCS=*.c
-CFLAGS= -g -O0 -std=gnu99 -pthread
+SRCS=*.c murmur3/murmur3.c
+CFLAGS= -Imurmur3 -g -O0 -std=gnu99 -pthread
 LDFLAGS= -lpcap
 
 CC= gcc

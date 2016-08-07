@@ -17,6 +17,7 @@
 #include "ipfixd.h"
 #include "capture.h"
 #include "circular_buffer.h"
+#include <murmur3.h>
 
 void
 usage()
@@ -65,7 +66,7 @@ uint32_t
 flowdb_add(struct ipfix_flow **flowdb, size_t size, struct ipfix_flow *flow)
 {
     for (size_t i=0; i < size; i++) {
-        if (flowdb[i] != NULL && flowdb[i]->hash == flow->hash) {
+        if (flowdb[i] != NULL && memcmp(flowdb[i]->hash, flow->hash, sizeof(flow->hash)) == 0) {
             merge_flow(flowdb[i], flow);
             return 1;
         }
@@ -107,8 +108,7 @@ thread_print_tuple(void *p)
     while (1) {
         struct ipfix_flow *flow = cbuf_pop(cbuf);
         if (flow != NULL) {
-            // FIXME
-            flow->hash = *(uint64_t *)&flow->tuple;
+            MurmurHash3_x86_128(&flow->tuple, sizeof(struct base_tuple), 0, flow->hash);
 
             if (flowdb_add(flowdb, flowdb_size, flow) != 0) {
                 free(flow);

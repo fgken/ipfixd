@@ -57,7 +57,7 @@ struct dns_tuple {
 };
 
 struct ipfix_flow {
-    uint64_t hash;
+    uint8_t hash[16];
     struct base_tuple tuple;
     uint64_t octet;
     uint64_t count;
